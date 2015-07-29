@@ -1,0 +1,124 @@
+ALTER PROCEDURE PRC_PROC_REPORT_EXCEL
+@V_START_DATE	varchar(50)
+	,@V_END_DATE		varchar(50)
+	,@V_NAME			VARCHAR(50)
+	,@V_LAST			VARCHAR(50)
+	,@V_DEPARTMENT_ID	VARCHAR(50)
+	,@V_DATE_CUT		varchar(50)
+	,@V_FORMAT		VARCHAR(5)
+	,@V_ROUND		NUMERIC(5)
+	,@v_username	varchar(50)
+	,@RESULT             VARCHAR(20)   	OUTPUT
+    ,@RESULT_MESSAGE    	VARCHAR(2000)  	OUTPUT
+AS
+BEGIN
+	/*IF(@V_FORMAT = 'PDF') BEGIN*/
+		SELECT    case when cma.AC_NO not like '%-%' and ISNUMERIC(cma.AC_NO) = 1 then
+				case when len(cma.AC_NO) = 4 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0')
+				when len(cma.AC_NO) = 5 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-0')
+				when len(cma.AC_NO) = 6 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00')
+				when len(cma.AC_NO) = 7 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-000')
+				when len(cma.AC_NO) = 8 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-0000')
+				when len(cma.AC_NO) = 9 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000') 
+				when len(cma.AC_NO) = 10 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0')
+				when len(cma.AC_NO) = 11 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00') 
+				when len(cma.AC_NO) = 12 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-000')
+				when len(cma.AC_NO) = 13 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0000')
+				when len(cma.AC_NO) = 14 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00000')
+				when len(cma.AC_NO) = 15 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-000000')
+				when len(cma.AC_NO) = 16 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0000000')
+				when len(cma.AC_NO) = 17 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00000000')
+				when len(cma.AC_NO) = 18 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-000000000')
+				when len(cma.AC_NO) = 19 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0000000000')
+				when len(cma.AC_NO) = 20 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00000000000')
+				else cma.AC_NO end
+				else cma.AC_NO
+				end as AC_NO, C.FULL_NAME as NAME_LAST,C.CUST_ID
+		,COP.ORG_PAYROLL_KEY+ (case when COP.ORG_PAYROLL_NAME_LO is null then '' else '-'+COP.ORG_PAYROLL_NAME_LO end) as LOOKUP_NAMELO
+		,pra.PRINCIPLE_AMOUNT as TOTAL_SHARE_VALUES
+		,isnull(prl.PRINCIPLE_AMOUNT,0)as PRINCIPLE_AMOUNT
+		,isnull(prl.INTEREST_AMOUNT,0) as INTEREST
+		,ppla.ACCUAL_AMOUNT as SUM_TOTAL
+		,pra.MODULE_ID
+		,isnull(prl.INTEREST_AMOUNT,0) AS DEPOSIT
+		,(case when cma.AC_NO like '0%' or cma.AC_NO like '1%' then ppla.ACCUAL_AMOUNT - 10
+			else ppla.ACCUAL_AMOUNT - 15 
+			end) as NET_AMOUNT
+		,(case when cma.AC_NO like '0%' or cma.AC_NO like '1%' then 10
+			else 15 
+			end) as NET_B_AMOUNT
+		,D.EFFECTIVE_DATE
+		,C.CUSTOMER_CODE_SHOW +(case when C.OLD_SYS_CUSTOMER_CODE is null then '' else  '/' + C.OLD_SYS_CUSTOMER_CODE end) as CUST_CODE
+		FROM CIS_VIEW_CUSTOMER_FULLNAME C
+		INNER JOIN CIS_REGISTER_CUSTOMER RC ON C.CUST_ID = RC.CUST_ID
+		INNER JOIN CIS_RESIGN_DETAIL D ON (D.REGISTER_CUSTOMER_ID = RC.REGISTER_ID and RC.APPLICATION_TYPE = 30010003)
+		INNER JOIN CIS_WORK_INFORMATION CW ON C.CUST_ID = CW.WORK_ID
+		INNER JOIN CIS_ORG_PAYROLL COP ON CW.DEP_PAY_SALARY_ID = COP.ORG_PAYROLL_ID
+		/*LEFT JOIN (select cis.CUST_ID, isnull(accall.AC_NO,accsha.AC_NO) as AC_NO from CIS_CUSTOMER cis
+			left join (select * from CIS_MANAGE_ACCOUNT sschia where sschia.PURPOSE_ID = 30060099 AND sschia.AC_GROUP = 'B') accsha ON accsha.CUST_ID = cis.CUST_ID
+			left join (select * from CIS_MANAGE_ACCOUNT sschia where sschia.PURPOSE_ID = 30060004 AND sschia.AC_GROUP = 'B') accall ON accall.CUST_ID = cis.CUST_ID
+			group by cis.CUST_ID,accall.AC_NO,accsha.AC_NO) cma on C.CUST_ID = cma.CUST_ID */
+		LEFT JOIN PRC_RESIGN_ASSET pra ON C.CUST_ID = pra.CUST_ID AND pra.MODULE_ID = 5
+		LEFT JOIN PRC_RESIGN_ASSET pra2 ON C.CUST_ID = pra2.CUST_ID AND pra2.MODULE_ID = 99
+	     LEFT JOIN CIS_RESIGN_DETAIL CRD on CRD.RESIGN_DETAIL_ID = PRA.RESIGN_ID
+	     LEFT JOIN CIS_MANAGE_ACCOUNT CMA on CRD.BANK_ACCOUNT_ID = CMA.BIND_AC_ID
+		inner JOIN PRC_PAYMENT_LINE ppla ON ppla.PRC_PAYMENT_LINE_ID = pra2.PRC_PAYMENT_LINE_ID and ppla.VOID_DATE is null
+		LEFT JOIN (SELECT CUST_ID , SUM(PRINCIPLE_AMOUNT) as PRINCIPLE_AMOUNT, SUM(INTEREST_AMOUNT) as INTEREST_AMOUNT from PRC_RESIGN_LIABILITY
+		GROUP BY CUST_ID) prl ON C.CUST_ID = prl.CUST_ID
+		where D.EFFECTIVE_DATE between convert(datetime, @V_START_DATE, 120) and convert(datetime, @V_END_DATE, 120)
+		AND C.NAME_LO like '%'+isnull(@V_NAME,C.NAME_LO)+'%'
+		AND C.SURNAME_LO like '%'+isnull(@V_LAST,C.SURNAME_LO)+'%'
+		AND CW.DEP_PAY_SALARY_ID = isnull(@V_DEPARTMENT_ID,CW.DEP_PAY_SALARY_ID)
+		/*AND pra.TOTAL_ASSET > 0*/
+	/*END ELSE BEGIN 
+		SELECT    case when cma.AC_NO not like '%-%' and ISNUMERIC(cma.AC_NO) = 1 then
+				case when len(cma.AC_NO) = 4 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0')
+				when len(cma.AC_NO) = 5 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-0')
+				when len(cma.AC_NO) = 6 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00')
+				when len(cma.AC_NO) = 7 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-000')
+				when len(cma.AC_NO) = 8 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-0000')
+				when len(cma.AC_NO) = 9 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000') 
+				when len(cma.AC_NO) = 10 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0')
+				when len(cma.AC_NO) = 11 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00') 
+				when len(cma.AC_NO) = 12 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-000')
+				when len(cma.AC_NO) = 13 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0000')
+				when len(cma.AC_NO) = 14 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00000')
+				when len(cma.AC_NO) = 15 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-000000')
+				when len(cma.AC_NO) = 16 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0000000')
+				when len(cma.AC_NO) = 17 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00000000')
+				when len(cma.AC_NO) = 18 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-000000000')
+				when len(cma.AC_NO) = 19 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-0000000000')
+				when len(cma.AC_NO) = 20 then FORMAT(cast(LTRIM(RTRIM(cma.AC_NO)) as numeric(20,0)),'000-0-00000-00000000000')
+				else cma.AC_NO end
+				else cma.AC_NO
+				end as AC_NO, C.FULL_NAME as NAME_LAST
+				,prl.INTEREST_AMOUNT as INTEREST
+		,pra.TOTAL_ASSET as SUM_TOTAL		
+		,(case when cma.AC_NO like '0%' or cma.AC_NO like '1%' then pra.TOTAL_ASSET - 10
+			else pra.TOTAL_ASSET - 15 
+			end) as NET_AMOUNT
+		,(case when cma.AC_NO like '0%' or cma.AC_NO like '1%' then 10
+			else 15 
+			end) as NET_B_AMOUNT
+		,D.EFFECTIVE_DATE
+		,C.CUST_ID
+		FROM CIS_VIEW_CUSTOMER_FULLNAME C
+		INNER JOIN CIS_REGISTER_CUSTOMER RC ON C.CUST_ID = RC.CUST_ID
+		INNER JOIN CIS_RESIGN_DETAIL D ON (D.REGISTER_CUSTOMER_ID = RC.REGISTER_ID and RC.APPLICATION_TYPE = 30010003)
+		INNER JOIN CIS_WORK_INFORMATION CW ON C.CUST_ID = CW.WORK_ID
+		INNER JOIN CIS_ORG_PAYROLL COP ON CW.DEP_PAY_SALARY_ID = COP.ORG_PAYROLL_ID
+		LEFT JOIN (select cis.CUST_ID, isnull(accsha.AC_NO,accall.AC_NO) as AC_NO from CIS_CUSTOMER cis
+			left join (select * from CIS_MANAGE_ACCOUNT sschia where sschia.PURPOSE_ID = 30060099 AND sschia.AC_GROUP = 'B') accsha ON accsha.CUST_ID = cis.CUST_ID
+			left join (select * from CIS_MANAGE_ACCOUNT sschia where sschia.PURPOSE_ID = 30060004 AND sschia.AC_GROUP = 'B') accall ON accall.CUST_ID = cis.CUST_ID			
+			group by cis.CUST_ID,accall.AC_NO,accsha.AC_NO) cma on C.CUST_ID = cma.CUST_ID 
+		LEFT JOIN PRC_RESIGN_ASSET pra ON C.CUST_ID = pra.CUST_ID AND pra.MODULE_ID = 5
+		INNER JOIN PRC_PAYMENT_LINE ppla ON ppla.PRC_PAYMENT_LINE_ID = pra.PRC_PAYMENT_LINE_ID and ppla.VOID_DATE is null
+		LEFT JOIN (SELECT CUST_ID , SUM(PRINCIPLE_AMOUNT) as PRINCIPLE_AMOUNT, SUM(INTEREST_AMOUNT) as INTEREST_AMOUNT from PRC_RESIGN_LIABILITY
+		GROUP BY CUST_ID) prl ON C.CUST_ID = prl.CUST_ID
+		where D.EFFECTIVE_DATE between convert(datetime, @V_START_DATE, 120) and convert(datetime, @V_END_DATE, 120)
+		AND C.NAME_LO like '%'+isnull(@V_NAME,C.NAME_LO)+'%'
+		AND C.SURNAME_LO like '%'+isnull(@V_LAST,C.SURNAME_LO)+'%'
+		AND CW.DEP_PAY_SALARY_ID = isnull(@V_DEPARTMENT_ID,CW.DEP_PAY_SALARY_ID)
+		AND pra.TOTAL_ASSET > 0
+	END*/
+END
